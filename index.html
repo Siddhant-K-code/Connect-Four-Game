@@ -1,0 +1,528 @@
+<title>Connect Four Game</title>
+<link href="https://fonts.googleapis.com/css?family=Baloo+Chettan+2:400,700&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<div id="game">
+
+	<div id="winner-burst" :class="[currentTurnColor, gameOver && 'burst']"></div>
+
+	<div class="flex">
+		<p v-html="message" role="status"></p>
+		<button :disabled="!areThereMoves" @click="startNewGame">New game</button>
+	</div>
+
+	<div id="button-board">
+		<div v-for="i in 8" :data-column="i - 1" @click.stop="dropPiece">
+			<button :data-column="i - 1" @click.stop="dropPiece" @keydown="handleMoveCursor" @mouseover="handleHover" :aria-label="`Drop ${currentTurnColor} piece in column ${i}`" :tabindex="gameOver || isADraw ? '-1' : '0'">
+				<span></span>
+			</button>
+			<div class="slot" :hidden="gameOver || isADraw" aria-hidden="true">
+				<div :class="currentTurnColor">
+					{{ getPieceIcon(currentTurnColor) }}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<div id="board">
+		<template v-for="row, rowNumber in grid">
+			<template v-for="slot, slotNumber in row">
+				<div class="slot shadow" @click="dropPiece" @mouseover="handleSlotHover" :style="slot.color && `animation: drop 0.05s forwards steps(6)`" :data-row="rowNumber" :data-column="slotNumber" :key="`${rowNumber}${slotNumber}`" :aria-label="`${slot.color && slot.color + ' piece' || 'Blank slot'} in column ${slotNumber +1} of 8, row ${rowNumber +1} of 6.` ">
+					<div v-if="slot.color" :class="[slot.color, gameOver && currentTurnColor != slot.color && 'loser']" aria-hidden="true">
+						{{ getPieceIcon(slot.color) }}
+					</div>
+				</div>
+			</template>
+		</template>
+	</div>
+</div>
+
+<style>
+  @charset "UTF-8";
+*,
+*:before,
+*:after {
+    box-sizing: inherit;
+    font-family: inherit;
+    color: inherit;
+    position: inherit;
+}
+
+*:focus {
+    outline: 0.15rem dotted #ff6a13;
+    outline-offset: 0.15rem;
+}
+
+[hidden] {
+    display: none !important;
+}
+
+body {
+    font-family: "Baloo Chettan 2";
+    margin: 0;
+    min-height: 100vh;
+    box-sizing: border-box;
+    color: #53565a;
+    font-size: 2rem;
+    position: relative;
+}
+
+.red,
+.yellow {
+    text-transform: capitalize;
+    margin-right: 0.1em;
+}
+
+.red {
+    color: #e4002b;
+}
+
+.yellow {
+    color: #ffd100;
+}
+
+button {
+    cursor: pointer;
+}
+
+#game {
+    width: 100%;
+    padding: 1rem;
+    margin: auto;
+    min-height: 100vh;
+}
+
+@media (min-width: 40rem) {
+    #game {
+        max-width: 76vmin;
+        padding: 0;
+        padding-top: 10vmin;
+        min-height: calc(100vh - 10vmin);
+    }
+}
+
+#game .flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+#game .flex p {
+    font-size: calc(1rem + 3vmin);
+    margin: 0;
+}
+
+#game .flex button {
+    font-size: 1rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    border: 2px solid #a7a8aa;
+}
+
+#game .flex button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#game .flex button:not(:disabled):hover {
+    filter: brightness(0.9);
+}
+
+#button-board {
+    display: none;
+    grid-template-columns: repeat(8, 1fr);
+    grid-gap: 1.998vmin;
+    padding: 3vmin 3vmin 0;
+}
+
+@media (min-width: 40rem) {
+    #button-board {
+        display: grid;
+    }
+}
+
+#button-board [data-column] {
+    position: relative;
+}
+
+#button-board button {
+    padding: 3vmin 0;
+    border: 0;
+    text-align: center;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    background: transparent;
+}
+
+#button-board button span {
+    height: 0;
+    border-left: 1vmin solid transparent;
+    border-right: 1vmin solid transparent;
+    border-bottom: none;
+    border-top: 1vmin solid #a7a8aa;
+    text-align: center;
+    pointer-events: none;
+    display: block;
+}
+
+#button-board button span::after {
+    content: "";
+    width: 4vmin;
+    height: 4vmin;
+    border-radius: 4vmin;
+    border: 3px solid #a7a8aa;
+    left: -2vmin;
+    top: -2.7vmin;
+    display: block;
+    position: absolute;
+}
+
+#button-board button:focus, #button-board button:hover {
+    outline: none;
+}
+
+#button-board button:focus + .slot, #button-board button:hover + .slot {
+    display: block;
+    left: 0;
+    z-index: 2;
+    pointer-events: none;
+    position: absolute;
+    bottom: 0.999vmin;
+}
+
+#button-board button:focus + .slot:before, #button-board button:hover + .slot:before {
+    content: "👇";
+    position: absolute;
+    font-size: calc(1rem + 3vmin);
+    width: 90%;
+    left: 0;
+    top: -0.8em;
+    text-align: center;
+    z-index: 2;
+}
+
+#button-board button:focus + .slot div, #button-board button:hover + .slot div {
+    animation: none;
+    z-index: 1;
+    box-shadow: -0.1rem -0.1rem 1px rgba(255, 255, 255, 0.2) inset;
+}
+
+#button-board button:focus + .slot div:before, #button-board button:hover + .slot div:before {
+    box-shadow: -0.1rem -0.1rem 1px rgba(255, 255, 255, 0.2) inset, 0.2rem 0.2rem 0.3rem rgba(83, 86, 90, 0.2) inset;
+}
+
+#button-board .slot {
+    position: absolute;
+    top: 0;
+    display: none;
+}
+
+#board {
+    margin: auto;
+    display: grid;
+    grid-gap: 3vmin;
+    grid-template-columns: repeat(8, 1fr);
+    justify-content: center;
+    overflow: hidden;
+    border-radius: 0.25rem;
+    padding: 3vmin;
+    background: #7ba7bc;
+    mix-blend-mode: multiply;
+    box-shadow: 0.2rem 0.3rem 0.4rem rgba(83, 86, 90, 0.3), -0.25rem -0.25rem 0.25rem rgba(89, 144, 171, 0.5) inset, 0.25rem 0.25rem 0.25rem rgba(157, 190, 205, 0.8) inset;
+}
+
+@media (min-width: 40rem) {
+    #board {
+        grid-gap: 1.998vmin;
+    }
+}
+
+.slot {
+    width: 7.998vmin;
+    height: 7.998vmin;
+    background: #fff;
+    border-radius: 7.998vmin;
+    padding: 0;
+    border: none;
+    margin: auto;
+}
+
+@media (min-width: 40rem) {
+    .slot {
+        width: 6.999vmin;
+        height: 6.999vmin;
+    }
+}
+
+.slot.shadow {
+    box-shadow: 0.15rem 0.15rem 1px rgba(174, 201, 214, 0.5), -0.15rem -0.15rem 1px rgba(79, 131, 156, 0.5), 0.2rem 0.2rem 0.2rem rgba(83, 86, 90, 0.3) inset;
+}
+
+.slot .red,
+.slot .yellow {
+    width: inherit;
+    height: inherit;
+    border-radius: inherit;
+    border: none;
+    pointer-events: none;
+    box-shadow: -0.1rem -0.1rem 1px rgba(255, 255, 255, 0.2) inset, 0.1rem 0.1rem 1px rgba(83, 86, 90, 0.2) inset, 0.2rem 0.2rem 0.3rem rgba(83, 86, 90, 0.3) inset;
+    position: relative;
+    font-size: 4vmin;
+    line-height: 7.2vmin;
+    text-align: center;
+    color: rgba(0, 0, 0, 0.4);
+}
+
+.slot .red.loser,
+.slot .yellow.loser {
+    filter: opacity(0.7) grayscale(60%) contrast(0.4);
+}
+
+.slot .red:before,
+.slot .yellow:before {
+    content: "";
+    width: 70%;
+    height: 70%;
+    border-radius: inherit;
+    box-shadow: inherit;
+    left: 15%;
+    top: 15%;
+    position: absolute;
+}
+
+.slot .red {
+    background: #e4002b;
+}
+
+.slot .yellow {
+    background: #ffd100;
+}
+
+#winner-burst {
+    transition: all 0.7s ease;
+    width: 150vmax;
+    height: 150vmax;
+    border-radius: 75vmax;
+    position: absolute;
+    left: calc(50% - 75vmax);
+    z-index: 3;
+    top: calc(50% - 75vmax);
+    transform-origin: center;
+    transform: scale(0);
+    pointer-events: none;
+}
+
+#winner-burst.red {
+    background-color: #e4002b;
+}
+
+#winner-burst.yellow {
+    background-color: #ffd100;
+}
+
+#winner-burst.burst {
+    transform: scale(1);
+    animation: fadeOut 0.7s ease forwards;
+    animation-delay: 0.7s;
+}
+
+@keyframes drop {
+    from {
+        transform: translateY(-54vmin);
+    }
+    to {
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
+}
+
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.11/vue.min.js"></script>
+
+<script>
+
+function _toConsumableArray(arr) { return _arrayWithoutHoles(arr) || _iterableToArray(arr) || _unsupportedIterableToArray(arr) || _nonIterableSpread(); }
+
+function _nonIterableSpread() { throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method."); }
+
+function _unsupportedIterableToArray(o, minLen) { if (!o) return; if (typeof o === "string") return _arrayLikeToArray(o, minLen); var n = Object.prototype.toString.call(o).slice(8, -1); if (n === "Object" && o.constructor) n = o.constructor.name; if (n === "Map" || n === "Set") return Array.from(n); if (n === "Arguments" || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(n)) return _arrayLikeToArray(o, minLen); }
+
+function _iterableToArray(iter) { if (typeof Symbol !== "undefined" && Symbol.iterator in Object(iter)) return Array.from(iter); }
+
+function _arrayWithoutHoles(arr) { if (Array.isArray(arr)) return _arrayLikeToArray(arr); }
+
+function _arrayLikeToArray(arr, len) { if (len == null || len > arr.length) len = arr.length; for (var i = 0, arr2 = new Array(len); i < len; i++) { arr2[i] = arr[i]; } return arr2; }
+
+var emptyGrid = [[{}, {}, {}, {}, {}, {}, {}, {}], [{}, {}, {}, {}, {}, {}, {}, {}], [{}, {}, {}, {}, {}, {}, {}, {}], [{}, {}, {}, {}, {}, {}, {}, {}], [{}, {}, {}, {}, {}, {}, {}, {}], [{}, {}, {}, {}, {}, {}, {}, {}]];
+var game = new Vue({
+  el: "#game",
+  data: function data() {
+    return {
+      grid: emptyGrid,
+      redTurn: true,
+      //if false, it's yellow's turn. Better to use a boolean than strings.
+      gameOver: false
+    };
+  },
+  //Prevent users from navigating away from a game accidentally
+  mounted: function mounted() {
+    var _this = this;
+
+    window.onbeforeunload = function () {
+      if (_this.areThereMoves) return "Are you sure you want to leave this game?"; //if we return nothing here (just calling return;) then there will be no pop-up question at all
+    };
+  },
+  methods: {
+    dropPiece: function dropPiece(e) {
+      if (this.gameOver) return; //No more plays once the game is done
+
+      var column = e.target.dataset.column;
+
+      for (var i = this.grid.length - 1; i >= 0; i--) {
+        if (!this.grid[i][column].color) {
+          this.grid[i][column].color = this.currentTurnColor;
+          this.refreshGrid();
+          var isGameOver = this.victoryCheck();
+
+          if (isGameOver) {
+            this.gameOver = true;
+          } else {
+            this.switchTurn();
+          }
+
+          break;
+        }
+      }
+    },
+    handleMoveCursor: function handleMoveCursor(e, x) {
+      var currentBtn = parseInt(e.target.dataset.column);
+      if (!e.key) return; //Do nothing if we don't have an identified key press
+
+      if (["ArrowRight", "ArrowDown"].includes(e.key)) {
+        this.focusAdjacentBtn(e, currentBtn, 1);
+      } else if (["ArrowLeft", "ArrowUp"].includes(e.key)) {
+        this.focusAdjacentBtn(e, currentBtn, -1);
+      } // Do nothing if the key pressed was not an arrow key
+
+    },
+    //Move focus to next or previous button
+    focusAdjacentBtn: function focusAdjacentBtn(e, currentBtn, direction) {
+      e.preventDefault();
+      if (!direction) return;
+      var adjacentBtn = document.querySelector("button[data-column=\"".concat(currentBtn + direction, "\"]"));
+
+      if (adjacentBtn) {
+        adjacentBtn.focus();
+      } else if (direction > 0) {
+        document.querySelector("button[data-column]").focus(); //wrap to beginning if at the end
+      } else {
+        document.querySelector("button[data-column=\"7\"]").focus(); //wrap to end if at the beginning
+      }
+    },
+    //Helps prevent multiple "drop" cursors when hovering after a button has focus
+    handleHover: function handleHover(e) {
+      e.target.focus();
+    },
+    //Adds the "drop" indicator above a hovered column
+    handleSlotHover: function handleSlotHover(e) {
+      var column = e.target.dataset.column;
+      document.querySelector("#button-board button[data-column=\"".concat(column, "\"]")).focus();
+    },
+    switchTurn: function switchTurn() {
+      this.redTurn = !this.redTurn;
+    },
+    //Necessary to get Vue to recognize changes, because changes to an object in an array of objects won't trigger a re-render
+    refreshGrid: function refreshGrid() {
+      this.grid = _toConsumableArray(this.grid);
+    },
+    getPieceIcon: function getPieceIcon(color) {
+      return color == "yellow" ? "⭐" : "🔴";
+    },
+    //Runs through all possible win scenarios (and some impossible) to see if the game is over
+    victoryCheck: function victoryCheck() {
+      var _this2 = this;
+
+      var isGameOver = false; //Loop over every victory method (some impossible, to keep the code simple; hence the optional chaining)
+
+      this.grid.forEach(function (row, rowIndex) {
+        row.forEach(function (column, colIndex) {
+          var _this2$grid, _this2$grid$rowIndex, _this2$grid$rowIndex2, _this2$grid2, _this2$grid2$rowIndex, _this2$grid2$rowIndex2, _this2$grid3, _this2$grid3$rowIndex, _this2$grid3$rowIndex2, _this2$grid4, _this2$grid5, _this2$grid5$colIndex, _this2$grid6, _this2$grid7, _this2$grid7$colIndex, _this2$grid8, _this2$grid9, _this2$grid9$colIndex, _this2$grid10, _this2$grid11, _this2$grid12, _this2$grid13, _this2$grid14, _this2$grid15, _this2$grid16, _this2$grid17, _this2$grid18, _this2$grid19, _this2$grid20, _this2$grid21, _this2$grid22, _this2$grid23, _this2$grid24, _this2$grid25, _this2$grid26, _this2$grid27;
+
+          var slotColor = column.color; //If we already know the game is over, get outta there
+
+          if (!slotColor || isGameOver) return;
+
+          if ( //Horizontal row
+          slotColor == ((_this2$grid = _this2.grid) === null || _this2$grid === void 0 ? void 0 : (_this2$grid$rowIndex = _this2$grid[rowIndex]) === null || _this2$grid$rowIndex === void 0 ? void 0 : (_this2$grid$rowIndex2 = _this2$grid$rowIndex[colIndex + 1]) === null || _this2$grid$rowIndex2 === void 0 ? void 0 : _this2$grid$rowIndex2.color) && slotColor == ((_this2$grid2 = _this2.grid) === null || _this2$grid2 === void 0 ? void 0 : (_this2$grid2$rowIndex = _this2$grid2[rowIndex]) === null || _this2$grid2$rowIndex === void 0 ? void 0 : (_this2$grid2$rowIndex2 = _this2$grid2$rowIndex[colIndex + 2]) === null || _this2$grid2$rowIndex2 === void 0 ? void 0 : _this2$grid2$rowIndex2.color) && slotColor == ((_this2$grid3 = _this2.grid) === null || _this2$grid3 === void 0 ? void 0 : (_this2$grid3$rowIndex = _this2$grid3[rowIndex]) === null || _this2$grid3$rowIndex === void 0 ? void 0 : (_this2$grid3$rowIndex2 = _this2$grid3$rowIndex[colIndex + 3]) === null || _this2$grid3$rowIndex2 === void 0 ? void 0 : _this2$grid3$rowIndex2.color) || //Vertical column
+          slotColor == ((_this2$grid4 = _this2.grid) === null || _this2$grid4 === void 0 ? void 0 : (_this2$grid5 = _this2$grid4[rowIndex - 1]) === null || _this2$grid5 === void 0 ? void 0 : (_this2$grid5$colIndex = _this2$grid5[colIndex]) === null || _this2$grid5$colIndex === void 0 ? void 0 : _this2$grid5$colIndex.color) && slotColor == ((_this2$grid6 = _this2.grid) === null || _this2$grid6 === void 0 ? void 0 : (_this2$grid7 = _this2$grid6[rowIndex - 2]) === null || _this2$grid7 === void 0 ? void 0 : (_this2$grid7$colIndex = _this2$grid7[colIndex]) === null || _this2$grid7$colIndex === void 0 ? void 0 : _this2$grid7$colIndex.color) && slotColor == ((_this2$grid8 = _this2.grid) === null || _this2$grid8 === void 0 ? void 0 : (_this2$grid9 = _this2$grid8[rowIndex - 3]) === null || _this2$grid9 === void 0 ? void 0 : (_this2$grid9$colIndex = _this2$grid9[colIndex]) === null || _this2$grid9$colIndex === void 0 ? void 0 : _this2$grid9$colIndex.color) || //Diagonal ascending
+          slotColor == ((_this2$grid10 = _this2.grid) === null || _this2$grid10 === void 0 ? void 0 : (_this2$grid11 = _this2$grid10[rowIndex - 1]) === null || _this2$grid11 === void 0 ? void 0 : (_this2$grid12 = _this2$grid11[colIndex + 1]) === null || _this2$grid12 === void 0 ? void 0 : _this2$grid12.color) && slotColor == ((_this2$grid13 = _this2.grid) === null || _this2$grid13 === void 0 ? void 0 : (_this2$grid14 = _this2$grid13[rowIndex - 2]) === null || _this2$grid14 === void 0 ? void 0 : (_this2$grid15 = _this2$grid14[colIndex + 2]) === null || _this2$grid15 === void 0 ? void 0 : _this2$grid15.color) && slotColor == ((_this2$grid16 = _this2.grid) === null || _this2$grid16 === void 0 ? void 0 : (_this2$grid17 = _this2$grid16[rowIndex - 3]) === null || _this2$grid17 === void 0 ? void 0 : (_this2$grid18 = _this2$grid17[colIndex + 3]) === null || _this2$grid18 === void 0 ? void 0 : _this2$grid18.color) || //Diagonal descending
+          slotColor == ((_this2$grid19 = _this2.grid) === null || _this2$grid19 === void 0 ? void 0 : (_this2$grid20 = _this2$grid19[rowIndex + 1]) === null || _this2$grid20 === void 0 ? void 0 : (_this2$grid21 = _this2$grid20[colIndex + 1]) === null || _this2$grid21 === void 0 ? void 0 : _this2$grid21.color) && slotColor == ((_this2$grid22 = _this2.grid) === null || _this2$grid22 === void 0 ? void 0 : (_this2$grid23 = _this2$grid22[rowIndex + 2]) === null || _this2$grid23 === void 0 ? void 0 : (_this2$grid24 = _this2$grid23[colIndex + 2]) === null || _this2$grid24 === void 0 ? void 0 : _this2$grid24.color) && slotColor == ((_this2$grid25 = _this2.grid) === null || _this2$grid25 === void 0 ? void 0 : (_this2$grid26 = _this2$grid25[rowIndex + 3]) === null || _this2$grid26 === void 0 ? void 0 : (_this2$grid27 = _this2$grid26[colIndex + 3]) === null || _this2$grid27 === void 0 ? void 0 : _this2$grid27.color)) {
+            isGameOver = true;
+          }
+        });
+      });
+      return isGameOver;
+    },
+    startNewGame: function startNewGame() {
+      if (this.areThereMoves) {
+        var areYouSure = confirm("Start a new game? This one will be lost four-ever :)");
+        if (!areYouSure) return;
+      }
+
+      this.grid.forEach(function (row) {
+        row.forEach(function (column) {
+          column.color = null;
+        });
+      });
+      this.refreshGrid();
+      this.gameOver = false;
+      this.redTurn = true;
+    }
+  },
+  computed: {
+    currentTurnColor: function currentTurnColor() {
+      return this.redTurn ? "red" : "yellow";
+    },
+    message: function message() {
+      if (this.isADraw) {
+        return "<b style=\"color: inherit\">DRAW!</b>";
+      } else if (this.gameOver) {
+        return "<b class=\"".concat(this.currentTurnColor, "\">").concat(this.currentTurnColor, " WINS! \uD83C\uDF89</b>");
+      } else {
+        return "<b class=\"".concat(this.currentTurnColor, "\">").concat(this.currentTurnColor, "</b>\u2019s turn");
+      }
+    },
+    //Monitor whether at least one move has been made
+    areThereMoves: function areThereMoves() {
+      var moves = false;
+      this.grid.forEach(function (row) {
+        row.forEach(function (column) {
+          if (column.color) moves = true;
+        });
+      });
+      return moves;
+    },
+    //Monitor whether the board is full and the game is not over
+    isADraw: function isADraw() {
+      var draw = true;
+      this.grid.forEach(function (row) {
+        row.forEach(function (column) {
+          if (!column.color) draw = false;
+        });
+      });
+      return draw;
+    }
+  }
+});
+</script>
